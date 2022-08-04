@@ -1,0 +1,6 @@
+Link to major datasets
+
+The datasets used in this analysis are too large to upload to GitHub. They can be downloaded online. To make use of them, download and extract them into the same working directory as the RMD and RDS files (outlined in metadata). 
+
+Link: https://data.ceda.ac.uk/badc/cru/data/cru_ts/cru_ts_3.21/
+(an account is required to download the datasts)
