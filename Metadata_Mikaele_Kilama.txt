@@ -1,0 +1,18 @@
+Metadata
+
+CRU_biome.csv
+- Biome dataset in spreadsheet form which contains definitions of biomes and realms for associated latitude and longitudes.
+
+Clean_Project_Code_REV280722.Rmd
+- R Markdown file that contains all code used to run our analysis and produce all plots.
+
+location_data_pre_total.RDS
+- RDS file that contains the precipitation data in its filtered form of the cru_ts3 raw datasets. This relieves the computational load of needing objects created during filtration process. The raw data files are still necessary to run our analysis and produce plots. This file contains latitudes, longitudes, mean precipitation data, precipitation r-squared values, and dates. 
+
+location_data_tmp_total.RDS
+- RDS file that contains the temperature data in its filtered form of the cru_ts3 raw datasets. This relieves the computational load of needing objects created during filtration process. The raw data files are still necessary to run our analysis and produce plots. This file contains latitudes, longitudes, mean temperature data, precipitation r-squared values, and dates. 
+
+Raw CRU datasets were too large to upload to GitHub repository, and are available online at: https://data.ceda.ac.uk/badc/cru/data/cru_ts/cru_ts_3.21/
+
+
+
