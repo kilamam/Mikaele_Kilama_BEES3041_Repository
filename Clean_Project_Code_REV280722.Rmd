@@ -1,0 +1,291 @@
+---
+title: "Cleaned code for predictability index project 30/07/22 VER"
+output: html_notebook
+---
+
+This file contains the following plots: 
+- 2 world maps of R-squared values by colour scale for both tmp and pre
+- 2 Scatterplots of R-squared vs. mean value for both pre and tmp
+- scatterplot of mean R-squared value per biome for tmp vs. pre
+- scatterplot of mean values per biome for tmp vs. pre
+- Biome map
+
+How to use this file:
+Unzip the RDS files that have been submitted alongside this RMD and place them in the same working directory. No changes to this file are needed to obtain the plots, simply run all chunks to produce the plots. 
+
+Load packages
+```{r}
+library(tidync)
+library(tidyverse)
+library(R.utils)
+library(lubridate)
+library(purrr)
+```
+
+! Shortcut for loading the premade RDS files !
+```{r}
+location_data_pre_total <- readRDS("location_data_pre_total.RDS")
+location_data_tmp_total <- readRDS("location_data_tmp_total.RDS")
+```
+
+Loads raw data. Default: Does not automatically run.
+```{r, eval=FALSE}
+TOTAL_PRECIP <- "cru_ts3.22.1901.2013.pre.dat.nc"
+TOTAL_TMP <- "cru_ts3.22.1901.2013.tmp.dat.nc"
+```
+
+activate the hyper tibbles. For this section we're using tmp as example. Default: Does not automatically run.
+```{r, eval=FALSE}
+lon  <- 
+    tidync(TOTAL_TMP) %>% activate("D0") %>% hyper_tibble()
+lat <-  
+    tidync(TOTAL_TMP) %>% activate("D1") %>% hyper_tibble()
+time <- 
+    tidync(TOTAL_TMP) %>% activate("D2") %>% hyper_tibble() %>%
+    mutate(time_ymd = as.Date(time, origin = "1900-01-01")) %>%
+    mutate(month= month(time_ymd, label= TRUE)) %>%
+    mutate(year= year(time_ymd))
+```
+
+create date, month, year columns. Default: Does not automatically run.
+```{r, eval=FALSE}
+Total_data_tmp <-
+  tidync(TOTAL_TMP) %>% activate("tmp") %>%
+    hyper_filter(time = time >= 29234, lat = abs(lat) < 70) %>%
+  hyper_tibble() %>%
+  mutate(time = as.Date(time, origin = "1900-01-01")) %>%
+    mutate(month= month(time, label= TRUE))%>%
+    mutate(year= year(time))
+```
+
+nest the tmp values and time columns. Default: Does not automatically run.
+```{r, eval=FALSE}
+Total_data_tmp %>% nest(tmp_data=c(tmp, time, month, year)) -> location_data_tmp_nested
+
+location_data_tmp_nested
+```
+
+Adding columns for fitted values, extracted R-Squared values, and mean values. Default: does not automatically run.
+```{r, eval=FALSE}
+fit_tmp_model<-function(data) {
+    lm(tmp~month, data)
+}
+
+    
+tmp_extract_r2 <- function(fit) {
+    summary(fit)$adj.r.squared
+}
+location_data_tmp_total <- location_data_tmp_nested %>%
+    # slice(1:70000) %>%
+    # slice_sample(n=2000) %>%
+    mutate(
+        fit_tmp= map(tmp_data, fit_tmp_model),
+        mean_tmp= map_dbl(tmp_data, ~mean(.x$tmp, na.rm=TRUE)),
+        tmp_r_squared=map_dbl(fit_tmp, tmp_extract_r2))
+```
+
+slim down the dataset to just what's needed for our plot and saved as an RDS file. Default: does not automatically run.
+```{r, eval=FALSE}
+location_data_tmp_total %>% select(lat, lon, tmp_r_squared, mean_tmp) %>%
+saveRDS("location_data_tmp_total.RDS")
+```
+
+And that's how the RDS files were made!
+
+
+Now for the world map R-Squared plots:
+
+temp R-squared values
+```{r}
+ggplot(location_data_tmp_total, aes(y = lat, x = lon))+
+    geom_point(aes(colour=tmp_r_squared)) +
+    scale_colour_viridis_c(option = "inferno") + theme_minimal()
+#ggsave("tmpr2.png")
+```
+# Mean Temperature Map Plot
+```{r}
+ggplot(location_data_tmp_total, aes(y = lat, x = lon))+
+    geom_point(aes(colour=mean_tmp)) +
+    scale_colour_viridis_c(option = "inferno") + theme_minimal()
+#ggsave("meantmpmap.png")
+```
+
+
+pre R squared values
+```{r}
+ggplot(location_data_pre_total, aes(y = lat, x = lon))+
+    geom_point(aes(colour=pre_r_squared)) +
+    scale_colour_viridis_c(option = "inferno") + theme_minimal()
+#ggsave("prer2map.png")
+```
+
+# Mean Precip Map Plot
+```{r}
+ggplot(location_data_pre_total, aes(y = lat, x = lon))+
+    geom_point(aes(colour=mean_pre)) +
+    scale_colour_viridis_c(option = "inferno") + theme_minimal()
+#ggsave("meanprecipmap.png")
+```
+
+
+Now we're onto the scatterplots.
+
+load biome data
+```{r}
+read.csv("CRU_biome.csv") -> biome
+biome
+```
+
+We'll do tmp and pre one at a time so we can use variables from both datasets later.
+
+#TEMP
+#Remove the arctic regions, leftjoin biome to total data tmp
+```{r}
+biome_filtered<- biome %>%
+    filter(abs(lat) < 70)
+
+location_data_tmp_biome<- location_data_tmp_total %>%
+    left_join(biome_filtered)
+location_data_tmp_biome
+```
+
+#Set biome as categorical variable, add standard deviations.
+```{r}
+location_data_tmp_biome %>%
+    group_by(BIOME) %>% 
+    summarize(mean_tmp_r2=mean(tmp_r_squared, na.rm=TRUE),
+              biome_mean_tmp= mean(mean_tmp, na.rm=TRUE), 
+              sd_tmp_r2= sd(tmp_r_squared, na.rm=TRUE),
+              sd_biome_tmp= sd(mean_tmp, na.rm=TRUE))-> plot_data_tmp
+```
+
+# Plot Mean R-squared for Temp vs. Mean Temp
+```{r}
+plot_data_tmp %>%
+    filter(!BIOME %in% c(0,98,99)) %>%
+    mutate(BIOME = as_factor(BIOME)) %>%
+    ggplot(aes(x = biome_mean_tmp, y = mean_tmp_r2)) +
+    geom_point(aes(colour = BIOME), size = 2.5) +
+    geom_errorbar(aes(
+            colour = BIOME,
+            width = 1.5,
+            ymin = mean_tmp_r2 - sd_tmp_r2,
+            ymax = mean_tmp_r2 + sd_tmp_r2)) +
+    geom_errorbarh(aes(
+            colour = BIOME,
+            height = 0.03,
+            xmin = biome_mean_tmp - sd_biome_tmp,
+            xmax = biome_mean_tmp + sd_biome_tmp)) +
+  geom_text(aes(label= BIOME, colour= BIOME), nudge_y = -0.05, nudge_x = 0.012) +
+    ggtitle("Mean R-squared vs. mean values for global temperature per biome") +
+    xlab("mean temperature value") +
+    ylab("mean temperature R-squared") + theme_minimal() +theme(axis.title.x=element_text(colour="white")) +theme(axis.title.y=element_text(colour="white"))
+ggsave("tmpr2vsmean.png")
+```
+
+# PRECIP
+# Remove the arctic regions, leftjoin biome to total pre data
+```{r}
+biome_filtered<- biome %>%
+    filter(abs(lat) < 70)
+
+location_data_pre_biome<- location_data_pre_total %>%
+    left_join(biome_filtered)
+
+location_data_pre_biome
+```
+
+# Set biome as categorical variable, add SD.
+```{r}
+location_data_pre_biome %>%
+    group_by(BIOME) %>% 
+    summarize(mean_pre_r2=mean(pre_r_squared, na.rm=TRUE),
+              biome_mean_pre= mean(mean_pre, na.rm=TRUE), 
+              sd_pre_r2= sd(pre_r_squared, na.rm=TRUE),
+              sd_biome_pre= sd(mean_pre, na.rm=TRUE))-> plot_data_pre
+```
+
+# Plot Mean R-squared for Precip vs. Mean Precipitation
+```{r}
+plot_data_pre %>%
+    filter(!BIOME %in% c(0,98,99)) %>%
+    mutate(BIOME = as_factor(BIOME)) %>%
+    ggplot(aes(x = biome_mean_pre, y = mean_pre_r2)) +
+    geom_point(aes(colour = BIOME), size = 2.5) +
+    geom_errorbar(aes(
+        colour = BIOME,
+        width = 9,
+        ymin = mean_pre_r2 - sd_pre_r2,
+        ymax = mean_pre_r2 + sd_pre_r2)) +
+    geom_errorbarh(aes(
+        colour = BIOME,
+        height = 0.03,
+        xmin = biome_mean_pre - sd_biome_pre,
+        xmax = biome_mean_pre + sd_biome_pre)) + 
+    geom_text(aes(label= BIOME, colour= BIOME), nudge_y = -0.05, nudge_x = 0.012) +
+    ggtitle("Mean Precipitation R-squared vs. Mean Precipitation per Biome") + 
+    xlab("Mean Precipitation Value") + 
+    ylab("Mean Precipitation R-squared") +
+    theme_minimal() +theme(axis.title.x=element_text(colour="white")) +theme(axis.title.y=element_text(colour="white"))
+ggsave("precipr2vsmean.png")
+```     
+
+# Combine `plot_data_pre` with `plot_data_tmp` in order to generate plots with both temp and precip
+```{r}
+plot_data_combined <- plot_data_pre %>%
+    left_join(plot_data_tmp)
+```
+
+# Plot Mean Temp vs. Mean Precip
+```{r}
+plot_data_combined %>%
+    filter(!BIOME %in% c(0,98,99)) %>%
+    mutate(BIOME = as_factor(BIOME)) %>%
+    ggplot(aes(x = biome_mean_tmp, y = biome_mean_pre)) +
+    geom_point(aes(colour = BIOME), size = 2.5) +
+    geom_errorbar(aes( colour = BIOME, width = 1.5,
+                       ymin = biome_mean_pre - sd_biome_pre,
+                       ymax = biome_mean_pre + sd_biome_pre) ) +
+    geom_errorbarh(aes(colour = BIOME, height = 10, 
+                       xmin = biome_mean_tmp - sd_biome_tmp,
+                       xmax = biome_mean_tmp + sd_biome_tmp)) +
+    geom_text(aes(label=BIOME, colour=BIOME), nudge_y = 1.2, nudge_x = 1.2)+
+    ggtitle("Mean Temperature vs. Mean Precipitation per Biome") +
+    xlab("Mean Temperature") +
+    ylab("Mean Precipitation") +
+    theme_minimal() +theme(axis.title.x=element_text(colour="white")) +theme(axis.title.y=element_text(colour="white"))
+ggsave("meanvsmean.png")
+```
+
+# Plot Mean R-squared Temp vs. Mean R-squared Precip
+```{r}
+plot_data_combined %>%
+    filter(!BIOME %in% c(0,98,99))%>%
+    mutate(BIOME=as_factor(BIOME)) %>%
+ggplot(aes(x=mean_tmp_r2, y= mean_pre_r2)) +
+    geom_point(aes(colour=BIOME), size = 2.5)+
+    geom_errorbar(aes(colour=BIOME, width=0.025,
+                      ymin=mean_pre_r2-sd_pre_r2,
+                      ymax=mean_pre_r2+sd_pre_r2)) +
+    geom_errorbarh(aes(colour=BIOME, height=0.03,
+                       xmin=mean_tmp_r2-sd_tmp_r2,
+                       xmax=mean_tmp_r2+sd_tmp_r2)) +
+    geom_text(aes(label=BIOME, colour=BIOME), nudge_y = -0.05, nudge_x = 0.012)+
+    ggtitle("Mean R-squared Temperature vs. Mean R-squared Precipitation per Biome") +
+    xlab("mean temperature R-squared") +
+    ylab("mean precipitation R-squared") +
+    theme_minimal() +theme(axis.title.x=element_text(colour="white")) +theme(axis.title.y=element_text(colour="white"))
+ggsave("r2vsr2.png")
+```
+
+# Global Biome Map
+```{r}
+global_biomes <- biome_filtered %>% 
+    filter(!BIOME %in% c(0,98,99))%>%
+    mutate(BIOME = as_factor(BIOME)) %>%
+    ggplot(aes(x = lon, y = lat)) +
+    geom_point(aes(colour = BIOME)) +
+  theme_minimal()
+global_biomes 
+# ggsave("biome_map.png")
+```
