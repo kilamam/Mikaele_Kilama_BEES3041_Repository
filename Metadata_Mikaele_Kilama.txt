@@ -14,5 +14,15 @@ location_data_tmp_total.RDS
 
 Raw CRU datasets were too large to upload to GitHub repository, and are available online at: https://data.ceda.ac.uk/badc/cru/data/cru_ts/cru_ts_3.21/
 
+#### Variable Breakdown ####
+lat - latitude entries
+lon - longitude entries
+time - number of days since 1901 by default. After mutation in code, contains time in (dd/mm/yyyy) form, and extracts month into its own column
+pre_r_squared - r-squared values of the precipitation data
+mean_pre - mean precipitation values 
+tmp_r_squared - r-squared values of the temperature data
+mean_tmp - mean temperature values
+
+
 
 
